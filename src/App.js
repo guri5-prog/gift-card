@@ -748,7 +748,7 @@ export default function CouplesDiary() {
     );
   }
 
-  if (action === 'write') {
+  if (action === 'read') {
     return (
       <div style={containerStyle}>
         <CustomModal />
@@ -761,7 +761,7 @@ export default function CouplesDiary() {
             <p style={{ color: '#6b7280', padding: '40px' }}>Loading letters...</p>
           ) : letters.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <BookHeart size={64} color="#ec4899" style={{ margin: '0 auto 16px' }} />
+              <BookOpen size={64} color="#ec4899" style={{ margin: '0 auto 16px' }} />
               <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '18px' }}>
                 No letters yet. {visitor === viewingProfile ? 'Write the first one!' : 'Check back later!'}
               </p>
@@ -891,7 +891,74 @@ export default function CouplesDiary() {
       </div>
     );
   }
-
+if (action === 'write') {
+  return (
+    <div style={containerStyle}>
+      <CustomModal />
+      <div style={{ ...cardStyle, maxWidth: '600px' }}>
+        <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
+          {editingLetter ? 'Edit Letter' : 'Write a Letter'}
+        </h1>
+        
+        <input
+          type="text"
+          placeholder="Letter Title"
+          value={letterTitle}
+          onChange={(e) => setLetterTitle(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '16px',
+            fontSize: '18px',
+            borderRadius: '12px',
+            border: '2px solid #d1d5db',
+            marginBottom: '16px',
+            outline: 'none'
+          }}
+        />
+        
+        <textarea
+          placeholder="Write your message here..."
+          value={letterContent}
+          onChange={(e) => setLetterContent(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '16px',
+            fontSize: '16px',
+            borderRadius: '12px',
+            border: '2px solid #d1d5db',
+            minHeight: '300px',
+            marginBottom: '24px',
+            outline: 'none',
+            resize: 'vertical',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}
+        />
+        
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <button
+            onClick={() => {
+              setAction(null);
+              setEditingLetter(null);
+              setLetterTitle('');
+              setLetterContent('');
+            }}
+            style={{ ...secondaryButtonStyle, flex: 1 }}
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={saveLetter}
+            style={{ ...primaryButtonStyle, flex: 1 }}
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : (editingLetter ? 'Update Letter' : 'Save Letter')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
   if (selectedLetter && !ribbonPulled) {
     return (
       <div style={containerStyle}>
