@@ -22,71 +22,60 @@ export default function CouplesDiary() {
   const timerRef = useRef(null);
   const tapThreshold = 30;
 
-  // Storage helper functions that work with both window.storage and localStorage
+  // Storage helper - works with both window.storage and localStorage
   const storage = {
     async get(key) {
       try {
-        if (window.storage) {
+        if (typeof window !== 'undefined' && window.storage) {
           return await window.storage.get(key, true);
-        } else {
-          const value = localStorage.getItem(key);
-          return value ? { key, value } : null;
         }
-      } catch (error) {
-        const value = localStorage.getItem(key);
-        return value ? { key, value } : null;
+      } catch (e) {
+        // Fall through to localStorage
       }
+      const value = localStorage.getItem(key);
+      return value ? { key, value } : null;
     },
+    
     async set(key, value) {
       try {
-        if (window.storage) {
+        if (typeof window !== 'undefined' && window.storage) {
           return await window.storage.set(key, value, true);
-        } else {
-          localStorage.setItem(key, value);
-          return { key, value };
         }
-      } catch (error) {
-        localStorage.setItem(key, value);
-        return { key, value };
+      } catch (e) {
+        // Fall through to localStorage
       }
+      localStorage.setItem(key, value);
+      return { key, value };
     },
+    
     async delete(key) {
       try {
-        if (window.storage) {
+        if (typeof window !== 'undefined' && window.storage) {
           return await window.storage.delete(key, true);
-        } else {
-          localStorage.removeItem(key);
-          return { key, deleted: true };
         }
-      } catch (error) {
-        localStorage.removeItem(key);
-        return { key, deleted: true };
+      } catch (e) {
+        // Fall through to localStorage
       }
+      localStorage.removeItem(key);
+      return { key, deleted: true };
     },
+    
     async list(prefix) {
       try {
-        if (window.storage) {
+        if (typeof window !== 'undefined' && window.storage) {
           return await window.storage.list(prefix, true);
-        } else {
-          const keys = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(prefix)) {
-              keys.push(key);
-            }
-          }
-          return { keys };
         }
-      } catch (error) {
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith(prefix)) {
-            keys.push(key);
-          }
-        }
-        return { keys };
+      } catch (e) {
+        // Fall through to localStorage
       }
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(prefix)) {
+          keys.push(key);
+        }
+      }
+      return { keys };
     }
   };
 
@@ -100,11 +89,15 @@ export default function CouplesDiary() {
     setLoading(true);
     try {
       const result = await storage.list(`letters:${viewingProfile}:`);
-      if (result && result.keys) {
+      if (result && result.keys && result.keys.length > 0) {
         const letterPromises = result.keys.map(async (key) => {
-          const data = await storage.get(key);
-          if (data && data.value) {
-            return JSON.parse(data.value);
+          try {
+            const data = await storage.get(key);
+            if (data && data.value) {
+              return JSON.parse(data.value);
+            }
+          } catch (e) {
+            console.error('Error loading letter:', e);
           }
           return null;
         });
@@ -148,7 +141,10 @@ export default function CouplesDiary() {
 
     try {
       setLoading(true);
-      const result = await storage.set(`letters:${viewingProfile}:${newLetter.id}`, JSON.stringify(newLetter));
+      const result = await storage.set(
+        `letters:${viewingProfile}:${newLetter.id}`, 
+        JSON.stringify(newLetter)
+      );
       
       if (result) {
         showModal('success', 'Letter saved successfully! 💌');
@@ -262,23 +258,6 @@ export default function CouplesDiary() {
     }
   };
 
-  const resetAll = () => {
-    setVisitor(null);
-    setViewingProfile(null);
-    setAction(null);
-    setSelectedLetter(null);
-    setRibbonPulled(false);
-    setGameStarted(false);
-    setGameComplete(false);
-    setTaps(0);
-    setTimeLeft(5);
-    setRibbonY(0);
-    setFillPercentage(0);
-    setModal(null);
-    clearInterval(timerRef.current);
-  };
-
-  // Custom Modal Component
   const CustomModal = () => {
     if (!modal) return null;
 
@@ -430,7 +409,6 @@ export default function CouplesDiary() {
     color: '#374151'
   };
 
-  // Visitor Selection
   if (!visitor) {
     return (
       <div style={containerStyle}>
@@ -479,7 +457,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Profile Selection
   if (visitor && !viewingProfile) {
     const visitorEmoji = visitor === 'boyfriend' ? '👨' : '👩';
     
@@ -536,7 +513,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Action Selection
   if (viewingProfile && !action) {
     const profileColor = viewingProfile === 'boyfriend' ? '#60a5fa' : '#ec4899';
     const profileEmoji = viewingProfile === 'boyfriend' ? '👨' : '👩';
@@ -613,7 +589,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Write Letter
   if (action === 'write') {
     return (
       <div style={containerStyle}>
@@ -693,7 +668,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Letters List
   if (action === 'read' && !selectedLetter) {
     return (
       <div style={containerStyle}>
@@ -802,7 +776,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Ribbon Pull
   if (selectedLetter && !ribbonPulled) {
     return (
       <div style={containerStyle}>
@@ -898,7 +871,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Heart Game
   if (gameStarted && !gameComplete) {
     return (
       <div style={containerStyle}>
@@ -1018,7 +990,6 @@ export default function CouplesDiary() {
     );
   }
 
-  // Letter Reveal
   if (gameComplete && selectedLetter) {
     const success = taps >= tapThreshold;
     
