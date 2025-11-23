@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Gift, BookHeart, PenLine, Book, Trash2 } from 'lucide-react';
+import { Heart, Gift, BookHeart, PenLine, Book, Trash2, Edit } from 'lucide-react';
 
 export default function CouplesDiary() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -12,6 +12,7 @@ export default function CouplesDiary() {
   const [selectedLetter, setSelectedLetter] = useState(null);
   const [letterTitle, setLetterTitle] = useState('');
   const [letterContent, setLetterContent] = useState('');
+  const [editingLetter, setEditingLetter] = useState(null);
   const [ribbonPulled, setRibbonPulled] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameComplete, setGameComplete] = useState(false);
@@ -34,7 +35,7 @@ export default function CouplesDiary() {
     setMounted(true);
   }, []);
 
-  // Storage helper - works with both window.storage and in-memory fallback
+  // Storage helper - uses localStorage for permanent storage
   const storage = {
     async get(key) {
       try {
@@ -42,9 +43,9 @@ export default function CouplesDiary() {
           return await window.storage.get(key, true);
         }
       } catch (e) {
-        // Fallback to sessionStorage
+        // Fallback to localStorage for permanent storage
       }
-      const value = sessionStorage.getItem(key);
+      const value = localStorage.getItem(key);
       return value ? { key, value } : null;
     },
     
@@ -54,9 +55,9 @@ export default function CouplesDiary() {
           return await window.storage.set(key, value, true);
         }
       } catch (e) {
-        // Fallback to sessionStorage
+        // Fallback to localStorage for permanent storage
       }
-      sessionStorage.setItem(key, value);
+      localStorage.setItem(key, value);
       return { key, value };
     },
     
@@ -66,9 +67,9 @@ export default function CouplesDiary() {
           return await window.storage.delete(key, true);
         }
       } catch (e) {
-        // Fallback to sessionStorage
+        // Fallback to localStorage
       }
-      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
       return { key, deleted: true };
     },
     
@@ -78,11 +79,11 @@ export default function CouplesDiary() {
           return await window.storage.list(prefix, true);
         }
       } catch (e) {
-        // Fallback to sessionStorage
+        // Fallback to localStorage
       }
       const keys = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
         if (key && key.startsWith(prefix)) {
           keys.push(key);
         }
@@ -162,38 +163,52 @@ export default function CouplesDiary() {
       return;
     }
 
-    const newLetter = {
-      id: Date.now().toString(),
-      title: letterTitle.trim(),
-      content: letterContent.trim(),
-      from: visitor,
-      to: viewingProfile,
-      date: new Date().toISOString(),
-      read: false
-    };
-
     try {
       setLoading(true);
-      const result = await storage.set(
-        `letters:${viewingProfile}:${newLetter.id}`, 
-        JSON.stringify(newLetter)
-      );
       
-      if (result) {
-        showModal('success', 'Letter saved successfully! 💌');
-        setLetterTitle('');
-        setLetterContent('');
-        setTimeout(() => {
-          setAction(null);
-          loadLetters();
-        }, 1500);
+      if (editingLetter) {
+        // Update existing letter
+        const updatedLetter = {
+          ...editingLetter,
+          title: letterTitle.trim(),
+          content: letterContent.trim(),
+          edited: true,
+          editedDate: new Date().toISOString()
+        };
+        
+        await storage.set(
+          `letters:${viewingProfile}:${editingLetter.id}`, 
+          JSON.stringify(updatedLetter)
+        );
+        
+        showModal('success', 'Letter updated successfully! ✏️');
+        setEditingLetter(null);
       } else {
-        setModal({
-          type: 'error',
-          message: 'Failed to save letter. Please try again.',
-          persistent: true
-        });
+        // Create new letter
+        const newLetter = {
+          id: Date.now().toString(),
+          title: letterTitle.trim(),
+          content: letterContent.trim(),
+          from: visitor,
+          to: viewingProfile,
+          date: new Date().toISOString(),
+          read: false
+        };
+
+        await storage.set(
+          `letters:${viewingProfile}:${newLetter.id}`, 
+          JSON.stringify(newLetter)
+        );
+        
+        showModal('success', 'Letter saved successfully! 💌');
       }
+      
+      setLetterTitle('');
+      setLetterContent('');
+      setTimeout(() => {
+        setAction(null);
+        loadLetters();
+      }, 1500);
     } catch (error) {
       console.error('Save error:', error);
       setModal({
@@ -204,6 +219,13 @@ export default function CouplesDiary() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const editLetter = (letter) => {
+    setEditingLetter(letter);
+    setLetterTitle(letter.title);
+    setLetterContent(letter.content);
+    setAction('write');
   };
 
   const deleteLetter = async (letterId) => {
@@ -443,7 +465,7 @@ export default function CouplesDiary() {
   };
 
   // Password authentication screen
-  if (!isAuthenticated) {
+  if (!mounted || !isAuthenticated) {
     return (
       <div style={containerStyle}>
         <CustomModal />
@@ -606,6 +628,7 @@ export default function CouplesDiary() {
   if (viewingProfile && !action) {
     const profileColor = viewingProfile === 'boyfriend' ? '#60a5fa' : '#ec4899';
     const profileEmoji = viewingProfile === 'boyfriend' ? '👨' : '👩';
+    const isOwnDiary = visitor === viewingProfile;
     
     return (
       <div style={containerStyle}>
@@ -643,29 +666,36 @@ export default function CouplesDiary() {
               <p style={{ color: '#6b7280' }}>View all love letters</p>
             </button>
             
-            <button
-              onClick={() => setAction('write')}
-              style={{
-                ...cardStyle,
-                width: '250px',
-                cursor: 'pointer',
-                border: '4px solid transparent'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.borderColor = profileColor;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.borderColor = 'transparent';
-              }}
-            >
-              <PenLine size={64} color={profileColor} style={{ margin: '0 auto 16px' }} />
-              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                Write Letter
-              </h2>
-              <p style={{ color: '#6b7280' }}>Write a new love letter</p>
-            </button>
+            {isOwnDiary && (
+              <button
+                onClick={() => {
+                  setEditingLetter(null);
+                  setLetterTitle('');
+                  setLetterContent('');
+                  setAction('write');
+                }}
+                style={{
+                  ...cardStyle,
+                  width: '250px',
+                  cursor: 'pointer',
+                  border: '4px solid transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.borderColor = profileColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.borderColor = 'transparent';
+                }}
+              >
+                <PenLine size={64} color={profileColor} style={{ margin: '0 auto 16px' }} />
+                <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
+                  Write Letter
+                </h2>
+                <p style={{ color: '#6b7280' }}>Write to your own diary</p>
+              </button>
+            )}
           </div>
           
           <button
@@ -685,7 +715,7 @@ export default function CouplesDiary() {
         <CustomModal />
         <div style={{ ...cardStyle, maxWidth: '600px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
-            Write a Love Letter
+            {editingLetter ? 'Edit Letter' : 'Write a Love Letter'}
           </h1>
           
           <div style={{ marginBottom: '24px', textAlign: 'left' }}>
@@ -743,10 +773,15 @@ export default function CouplesDiary() {
               }}
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Save Letter 💌'}
+              {loading ? 'Saving...' : editingLetter ? 'Update Letter ✏️' : 'Save Letter 💌'}
             </button>
             <button 
-              onClick={() => setAction(null)} 
+              onClick={() => {
+                setAction(null);
+                setEditingLetter(null);
+                setLetterTitle('');
+                setLetterContent('');
+              }} 
               style={{ ...secondaryButtonStyle, flex: 1 }}
               disabled={loading}
             >
@@ -773,85 +808,121 @@ export default function CouplesDiary() {
             <div style={{ textAlign: 'center', padding: '40px' }}>
               <BookHeart size={64} color="#ec4899" style={{ margin: '0 auto 16px' }} />
               <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '18px' }}>
-                No letters yet. Write the first one!
+                No letters yet. {visitor === viewingProfile ? 'Write the first one!' : 'Check back later!'}
               </p>
-              <button
-                onClick={() => setAction('write')}
-                style={primaryButtonStyle}
-              >
-                Write First Letter ✍️
-              </button>
+              {visitor === viewingProfile && (
+                <button
+                  onClick={() => setAction('write')}
+                  style={primaryButtonStyle}
+                >
+                  Write First Letter ✍️
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ maxHeight: '500px', overflowY: 'auto', marginBottom: '24px' }}>
-              {letters.map((letter) => (
-                <div
-                  key={letter.id}
-                  style={{
-                    background: '#fdf2f8',
-                    borderRadius: '12px',
-                    padding: '20px',
-                    marginBottom: '16px',
-                    border: '2px solid #fbcfe8',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s',
-                    position: 'relative'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'scale(1.02)';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  onClick={() => setSelectedLetter(letter)}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                        {letter.title}
-                      </h3>
-                      <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '8px' }}>
-                        From: {letter.from === 'boyfriend' ? '👨 Boyfriend' : '👩 Girlfriend'}
-                      </p>
-                      <p style={{ color: '#9ca3af', fontSize: '12px' }}>
-                        {new Date(letter.date).toLocaleDateString('en-US', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
+              {letters.map((letter) => {
+                const isOwnLetter = letter.from === visitor;
+                
+                return (
+                  <div
+                    key={letter.id}
+                    style={{
+                      background: '#fdf2f8',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      marginBottom: '16px',
+                      border: '2px solid #fbcfe8',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s',
+                      position: 'relative'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.02)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    onClick={() => setSelectedLetter(letter)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div style={{ flex: 1, textAlign: 'left' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
+                          {letter.title}
+                        </h3>
+                        <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '8px' }}>
+                          From: {letter.from === 'boyfriend' ? '👨 Boyfriend' : '👩 Girlfriend'}
+                        </p>
+                        <p style={{ color: '#9ca3af', fontSize: '12px' }}>
+                          {new Date(letter.date).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                          {letter.edited && ' (edited)'}
+                        </p>
+                      </div>
+                      
+                      {isOwnLetter && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              editLetter(letter);
+                            }}
+                            style={{
+                              background: '#dbeafe',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#bfdbfe';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#dbeafe';
+                            }}
+                          >
+                            <Edit size={18} color="#2563eb" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteLetter(letter.id);
+                            }}
+                            style={{
+                              background: '#fee2e2',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#fecaca';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#fee2e2';
+                            }}
+                          >
+                            <Trash2 size={18} color="#dc2626" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteLetter(letter.id);
-                      }}
-                      style={{
-                        background: '#fee2e2',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#fecaca';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = '#fee2e2';
-                      }}
-                    >
-                      <Trash2 size={18} color="#dc2626" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           
@@ -1132,6 +1203,7 @@ export default function CouplesDiary() {
                 hour: '2-digit',
                 minute: '2-digit'
               })}
+              {selectedLetter.edited && ' (edited)'}
             </p>
             <p style={{ color: '#374151', fontSize: '18px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
               {selectedLetter.content}
