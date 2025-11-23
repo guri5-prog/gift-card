@@ -22,11 +22,17 @@ export default function CouplesDiary() {
   const [tapAnimations, setTapAnimations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const timerRef = useRef(null);
   const tapThreshold = 30;
 
   // SET YOUR PASSWORD HERE - Change this to your desired password
   const CORRECT_PASSWORD = "OurLove2024";
+
+  // Ensure component is mounted before rendering
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Storage helper - works with both window.storage and in-memory fallback
   const storage = {
