@@ -18,6 +18,7 @@ export default function CouplesDiary() {
   const [fillPercentage, setFillPercentage] = useState(0);
   const [tapAnimations, setTapAnimations] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [modal, setModal] = useState(null);
   const timerRef = useRef(null);
   const tapThreshold = 30;
 
@@ -52,16 +53,25 @@ export default function CouplesDiary() {
     setLoading(false);
   };
 
+  const showModal = (type, message) => {
+    setModal({ type, message });
+    setTimeout(() => setModal(null), 3000);
+  };
+
   const saveLetter = async () => {
     if (!letterTitle.trim() || !letterContent.trim()) {
-      alert('Please fill in both title and message!');
+      setModal({
+        type: 'error',
+        message: 'Please fill in both title and message!',
+        persistent: true
+      });
       return;
     }
 
     const newLetter = {
       id: Date.now().toString(),
-      title: letterTitle,
-      content: letterContent,
+      title: letterTitle.trim(),
+      content: letterContent.trim(),
       from: visitor,
       to: viewingProfile,
       date: new Date().toISOString(),
@@ -69,35 +79,64 @@ export default function CouplesDiary() {
     };
 
     try {
-      await window.storage.set(`letters:${viewingProfile}:${newLetter.id}`, JSON.stringify(newLetter), true);
-      alert('Letter saved successfully! 💌');
-      setLetterTitle('');
-      setLetterContent('');
-      setAction(null);
-      loadLetters();
+      setLoading(true);
+      const result = await window.storage.set(`letters:${viewingProfile}:${newLetter.id}`, JSON.stringify(newLetter), true);
+      
+      if (result) {
+        showModal('success', 'Letter saved successfully! 💌');
+        setLetterTitle('');
+        setLetterContent('');
+        setTimeout(() => {
+          setAction(null);
+          loadLetters();
+        }, 1500);
+      } else {
+        setModal({
+          type: 'error',
+          message: 'Failed to save letter. Please try again.',
+          persistent: true
+        });
+      }
     } catch (error) {
-      alert('Failed to save letter. Please try again.');
-      console.error(error);
+      console.error('Save error:', error);
+      setModal({
+        type: 'error',
+        message: 'Failed to save letter. Please try again.',
+        persistent: true
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const deleteLetter = async (letterId) => {
-    if (!window.confirm('Are you sure you want to delete this letter?')) {
-      return;
-    }
-
-    try {
-      await window.storage.delete(`letters:${viewingProfile}:${letterId}`, true);
-      alert('Letter deleted successfully');
-      loadLetters();
-      if (selectedLetter && selectedLetter.id === letterId) {
-        setSelectedLetter(null);
-        setGameComplete(false);
-      }
-    } catch (error) {
-      alert('Failed to delete letter');
-      console.error(error);
-    }
+    setModal({
+      type: 'confirm',
+      message: 'Are you sure you want to delete this letter?',
+      persistent: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await window.storage.delete(`letters:${viewingProfile}:${letterId}`, true);
+          showModal('success', 'Letter deleted successfully');
+          loadLetters();
+          if (selectedLetter && selectedLetter.id === letterId) {
+            setSelectedLetter(null);
+            setGameComplete(false);
+          }
+        } catch (error) {
+          setModal({
+            type: 'error',
+            message: 'Failed to delete letter',
+            persistent: true
+          });
+          console.error(error);
+        } finally {
+          setLoading(false);
+        }
+      },
+      onCancel: () => setModal(null)
+    });
   };
 
   const getGreeting = () => {
@@ -167,7 +206,117 @@ export default function CouplesDiary() {
     setTimeLeft(5);
     setRibbonY(0);
     setFillPercentage(0);
+    setModal(null);
     clearInterval(timerRef.current);
+  };
+
+  // Custom Modal Component
+  const CustomModal = () => {
+    if (!modal) return null;
+
+    const isError = modal.type === 'error';
+    const isSuccess = modal.type === 'success';
+    const isConfirm = modal.type === 'confirm';
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '20px',
+          padding: '32px',
+          maxWidth: '400px',
+          width: '100%',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+          textAlign: 'center',
+          animation: 'modalSlideIn 0.3s ease-out'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>
+            {isError && '❌'}
+            {isSuccess && '✅'}
+            {isConfirm && '❓'}
+          </div>
+          
+          <p style={{ 
+            fontSize: '18px', 
+            color: '#374151', 
+            marginBottom: isConfirm ? '24px' : '0',
+            lineHeight: '1.6'
+          }}>
+            {modal.message}
+          </p>
+          
+          {isConfirm && (
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={modal.onCancel}
+                style={{ 
+                  ...secondaryButtonStyle, 
+                  flex: 1,
+                  padding: '12px 24px',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setModal(null);
+                  modal.onConfirm();
+                }}
+                style={{ 
+                  ...primaryButtonStyle, 
+                  flex: 1,
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  background: '#dc2626'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+          
+          {modal.persistent && !isConfirm && (
+            <button
+              onClick={() => setModal(null)}
+              style={{ 
+                ...primaryButtonStyle,
+                marginTop: '16px',
+                padding: '12px 32px',
+                fontSize: '14px'
+              }}
+            >
+              OK
+            </button>
+          )}
+        </div>
+        
+        <style>{`
+          @keyframes modalSlideIn {
+            from {
+              transform: scale(0.9) translateY(-20px);
+              opacity: 0;
+            }
+            to {
+              transform: scale(1) translateY(0);
+              opacity: 1;
+            }
+          }
+        `}</style>
+      </div>
+    );
   };
 
   const containerStyle = {
@@ -400,6 +549,7 @@ export default function CouplesDiary() {
   if (action === 'write') {
     return (
       <div style={containerStyle}>
+        <CustomModal />
         <div style={{ ...cardStyle, maxWidth: '600px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
             Write a Love Letter
@@ -422,6 +572,7 @@ export default function CouplesDiary() {
                 fontSize: '16px',
                 outline: 'none'
               }}
+              disabled={loading}
             />
           </div>
           
@@ -444,14 +595,28 @@ export default function CouplesDiary() {
                 outline: 'none',
                 fontFamily: 'inherit'
               }}
+              disabled={loading}
             />
           </div>
           
           <div style={{ display: 'flex', gap: '16px' }}>
-            <button onClick={saveLetter} style={{ ...primaryButtonStyle, flex: 1 }}>
-              Save Letter 💌
+            <button 
+              onClick={saveLetter} 
+              style={{ 
+                ...primaryButtonStyle, 
+                flex: 1,
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save Letter 💌'}
             </button>
-            <button onClick={() => setAction(null)} style={{ ...secondaryButtonStyle, flex: 1 }}>
+            <button 
+              onClick={() => setAction(null)} 
+              style={{ ...secondaryButtonStyle, flex: 1 }}
+              disabled={loading}
+            >
               Cancel
             </button>
           </div>
@@ -464,6 +629,7 @@ export default function CouplesDiary() {
   if (action === 'read' && !selectedLetter) {
     return (
       <div style={containerStyle}>
+        <CustomModal />
         <div style={{ ...cardStyle, maxWidth: '700px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
             Love Letters
