@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Gift, BookHeart, PenLine, Book, Trash2 } from 'lucide-react';
 
 export default function CouplesDiary() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [visitor, setVisitor] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [action, setAction] = useState(null);
@@ -21,6 +24,39 @@ export default function CouplesDiary() {
   const [modal, setModal] = useState(null);
   const timerRef = useRef(null);
   const tapThreshold = 30;
+
+  // SET YOUR PASSWORD HERE - Change this to your desired password
+  const CORRECT_PASSWORD = "OurLove2024";
+
+  // Check if already authenticated in this session
+  useEffect(() => {
+    const authStatus = sessionStorage.getItem('diaryAuth');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = () => {
+    if (password === CORRECT_PASSWORD) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('diaryAuth', 'true');
+      setPassword('');
+      showModal('success', 'Welcome to your love diary! 💕');
+    } else {
+      setModal({
+        type: 'error',
+        message: 'Incorrect password! Only we can access this diary.',
+        persistent: true
+      });
+      setPassword('');
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
+  };
 
   // Storage helper - works with both window.storage and localStorage
   const storage = {
