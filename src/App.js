@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Gift, BookHeart, PenLine, Book, Trash2, Edit } from 'lucide-react';
+import { Heart, Gift, PenLine, Book, Trash2, Edit, BookOpen } from 'lucide-react';
+
 
 export default function CouplesDiary() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -490,7 +491,7 @@ export default function CouplesDiary() {
     return (
       <div style={containerStyle}>
         <div style={cardStyle}>
-          <BookHeart size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937' }}>
             Loading...
           </h1>
@@ -504,7 +505,7 @@ export default function CouplesDiary() {
       <div style={containerStyle}>
         <CustomModal />
         <div style={cardStyle}>
-          <BookHeart size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
           <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
             Our Love Diary
           </h1>
@@ -563,7 +564,7 @@ export default function CouplesDiary() {
     return (
       <div style={containerStyle}>
         <div style={{ textAlign: 'center' }}>
-          <BookHeart size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
           <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
             Our Love Diary
           </h1>
