@@ -27,6 +27,7 @@ export default function CouplesDiary() {
   const [mounted, setMounted] = useState(false);
   const [firebaseReady, setFirebaseReady] = useState(false);
   const timerRef = useRef(null);
+  const ribbonStateRef = useRef({ dragging: false, startY: 0, lastY: 0 });
   const tapThreshold = 30;
 
   // 🔥 YOUR FIREBASE CONFIGURATION (if using)
@@ -456,8 +457,8 @@ export default function CouplesDiary() {
 
   const formContainerStyle = {
     ...cardStyle,
-    maxWidth: '640px',    // consistent width for forms
-    padding: '28px',
+    maxWidth: '640px',
+    padding: '32px',
     boxSizing: 'border-box',
     margin: '0 auto',
     textAlign: 'left'
@@ -469,11 +470,12 @@ export default function CouplesDiary() {
     fontSize: '16px',
     borderRadius: '12px',
     border: '2px solid #d1d5db',
-    minHeight: '40vh',
+    minHeight: '300px',
     marginBottom: '24px',
     outline: 'none',
     resize: 'vertical',
-    fontFamily: 'system-ui, -apple-system, sans-serif'
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    boxSizing: 'border-box'
   };
 
   const buttonStyle = {
@@ -528,7 +530,8 @@ export default function CouplesDiary() {
                   borderRadius: '12px',
                   border: '2px solid #d1d5db',
                   outline: 'none',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  boxSizing: 'border-box'
                 }}
                 autoFocus
               />
@@ -770,7 +773,8 @@ export default function CouplesDiary() {
                 borderRadius: '8px',
                 border: '2px solid #d1d5db',
                 fontSize: '16px',
-                outline: 'none'
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
               disabled={loading}
             />
@@ -966,7 +970,6 @@ export default function CouplesDiary() {
   }
 
   // Pointer-based ribbon dragging (more reliable)
-  const ribbonStateRef = useRef({ dragging: false, startY: 0, lastY: 0 });
   const PULL_THRESHOLD = 120; // px to consider "pulled"
 
   const handleRibbonPointerDown = (e) => {
