@@ -24,104 +24,127 @@ export default function CouplesDiary() {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [firebaseReady, setFirebaseReady] = useState(false);
   const timerRef = useRef(null);
   const tapThreshold = 30;
 
-  // SET YOUR PASSWORD HERE - Change this to your desired password
+  // 🔥 YOUR FIREBASE CONFIGURATION
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBNSvH4A32CgzIJ6ZpUoVL5ldrFGOzk-VI",
+    authDomain: "love-diary-8da4d.firebaseapp.com",
+    databaseURL: "https://love-diary-8da4d-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "love-diary-8da4d",
+    storageBucket: "love-diary-8da4d.firebasestorage.app",
+    messagingSenderId: "884924525218",
+    appId: "1:884924525218:web:c1b6ed36beac0d773105fb"
+  };
+
+  // SET YOUR PASSWORD HERE
   const CORRECT_PASSWORD = "OurLove2024";
 
-  // Ensure component is mounted before rendering
   useEffect(() => {
     setMounted(true);
+    initializeFirebase();
   }, []);
 
-  // Storage helper - uses localStorage for permanent storage
-  const storage = {
-    async get(key) {
-      try {
-        if (typeof window !== 'undefined' && window.storage) {
-          return await window.storage.get(key, true);
-        }
-      } catch (e) {
-        // Fallback to localStorage for permanent storage
+  // Initialize Firebase
+  const initializeFirebase = async () => {
+    try {
+      // Load Firebase scripts
+      await loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js');
+      
+      // Initialize Firebase
+      if (!window.firebase.apps.length) {
+        window.firebase.initializeApp(FIREBASE_CONFIG);
       }
-      const value = localStorage.getItem(key);
-      return value ? { key, value } : null;
+      
+      setFirebaseReady(true);
+      console.log('Firebase initialized successfully');
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+      setModal({
+        type: 'error',
+        message: 'Failed to connect to database. Please check your Firebase configuration.',
+        persistent: true
+      });
+    }
+  };
+
+  const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  };
+
+  // Firebase Database Helper
+  const db = {
+    async getLetters(profile) {
+      if (!firebaseReady) return [];
+      try {
+        const snapshot = await window.firebase.database()
+          .ref(`letters/${profile}`)
+          .once('value');
+        
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          return Object.values(data).sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+        return [];
+      } catch (error) {
+        console.error('Error getting letters:', error);
+        return [];
+      }
     },
-    
-    async set(key, value) {
+
+    async saveLetter(profile, letter) {
+      if (!firebaseReady) throw new Error('Firebase not ready');
       try {
-        if (typeof window !== 'undefined' && window.storage) {
-          return await window.storage.set(key, value, true);
-        }
-      } catch (e) {
-        // Fallback to localStorage for permanent storage
+        await window.firebase.database()
+          .ref(`letters/${profile}/${letter.id}`)
+          .set(letter);
+        return true;
+      } catch (error) {
+        console.error('Error saving letter:', error);
+        throw error;
       }
-      localStorage.setItem(key, value);
-      return { key, value };
     },
-    
-    async delete(key) {
+
+    async deleteLetter(profile, letterId) {
+      if (!firebaseReady) throw new Error('Firebase not ready');
       try {
-        if (typeof window !== 'undefined' && window.storage) {
-          return await window.storage.delete(key, true);
-        }
-      } catch (e) {
-        // Fallback to localStorage
+        await window.firebase.database()
+          .ref(`letters/${profile}/${letterId}`)
+          .remove();
+        return true;
+      } catch (error) {
+        console.error('Error deleting letter:', error);
+        throw error;
       }
-      localStorage.removeItem(key);
-      return { key, deleted: true };
-    },
-    
-    async list(prefix) {
-      try {
-        if (typeof window !== 'undefined' && window.storage) {
-          return await window.storage.list(prefix, true);
-        }
-      } catch (e) {
-        // Fallback to localStorage
-      }
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(prefix)) {
-          keys.push(key);
-        }
-      }
-      return { keys };
     }
   };
 
   useEffect(() => {
-    if (viewingProfile) {
+    if (viewingProfile && firebaseReady) {
       loadLetters();
     }
-  }, [viewingProfile]);
+  }, [viewingProfile, firebaseReady]);
 
   const loadLetters = async () => {
     setLoading(true);
     try {
-      const result = await storage.list(`letters:${viewingProfile}:`);
-      if (result && result.keys && result.keys.length > 0) {
-        const letterPromises = result.keys.map(async (key) => {
-          try {
-            const data = await storage.get(key);
-            if (data && data.value) {
-              return JSON.parse(data.value);
-            }
-          } catch (e) {
-            console.error('Error loading letter:', e);
-          }
-          return null;
-        });
-        const loadedLetters = (await Promise.all(letterPromises)).filter(Boolean);
-        loadedLetters.sort((a, b) => new Date(b.date) - new Date(a.date));
-        setLetters(loadedLetters);
-      } else {
-        setLetters([]);
-      }
+      const loadedLetters = await db.getLetters(viewingProfile);
+      setLetters(loadedLetters);
     } catch (error) {
-      console.log('No letters found yet');
+      console.log('Error loading letters:', error);
       setLetters([]);
     }
     setLoading(false);
@@ -163,11 +186,19 @@ export default function CouplesDiary() {
       return;
     }
 
+    if (!firebaseReady) {
+      setModal({
+        type: 'error',
+        message: 'Database not ready. Please refresh the page.',
+        persistent: true
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       
       if (editingLetter) {
-        // Update existing letter
         const updatedLetter = {
           ...editingLetter,
           title: letterTitle.trim(),
@@ -176,15 +207,10 @@ export default function CouplesDiary() {
           editedDate: new Date().toISOString()
         };
         
-        await storage.set(
-          `letters:${viewingProfile}:${editingLetter.id}`, 
-          JSON.stringify(updatedLetter)
-        );
-        
+        await db.saveLetter(viewingProfile, updatedLetter);
         showModal('success', 'Letter updated successfully! ✏️');
         setEditingLetter(null);
       } else {
-        // Create new letter
         const newLetter = {
           id: Date.now().toString(),
           title: letterTitle.trim(),
@@ -195,11 +221,7 @@ export default function CouplesDiary() {
           read: false
         };
 
-        await storage.set(
-          `letters:${viewingProfile}:${newLetter.id}`, 
-          JSON.stringify(newLetter)
-        );
-        
+        await db.saveLetter(viewingProfile, newLetter);
         showModal('success', 'Letter saved successfully! 💌');
       }
       
@@ -236,7 +258,7 @@ export default function CouplesDiary() {
       onConfirm: async () => {
         try {
           setLoading(true);
-          await storage.delete(`letters:${viewingProfile}:${letterId}`);
+          await db.deleteLetter(viewingProfile, letterId);
           showModal('success', 'Letter deleted successfully');
           loadLetters();
           if (selectedLetter && selectedLetter.id === letterId) {
@@ -464,8 +486,20 @@ export default function CouplesDiary() {
     color: '#374151'
   };
 
-  // Password authentication screen
-  if (!mounted || !isAuthenticated) {
+  if (!mounted) {
+    return (
+      <div style={containerStyle}>
+        <div style={cardStyle}>
+          <BookHeart size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937' }}>
+            Loading...
+          </h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return (
       <div style={containerStyle}>
         <CustomModal />
@@ -474,8 +508,11 @@ export default function CouplesDiary() {
           <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
             Our Love Diary
           </h1>
-          <p style={{ fontSize: '20px', color: '#6b7280', marginBottom: '32px' }}>
+          <p style={{ fontSize: '20px', color: '#6b7280', marginBottom: '16px' }}>
             Enter password to access
+          </p>
+          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '32px', fontStyle: 'italic' }}>
+            🔥 Powered by Firebase - Access from any device!
           </p>
           
           <div style={{ marginBottom: '24px' }}>
@@ -513,8 +550,9 @@ export default function CouplesDiary() {
           <button
             onClick={handleLogin}
             style={{ ...primaryButtonStyle, width: '100%' }}
+            disabled={!firebaseReady}
           >
-            Enter Diary 💕
+            {firebaseReady ? 'Enter Diary 💕' : 'Connecting...'}
           </button>
         </div>
       </div>
@@ -714,90 +752,6 @@ export default function CouplesDiary() {
       <div style={containerStyle}>
         <CustomModal />
         <div style={{ ...cardStyle, maxWidth: '600px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
-            {editingLetter ? 'Edit Letter' : 'Write a Love Letter'}
-          </h1>
-          
-          <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-            <label style={{ display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px' }}>
-              Letter Title:
-            </label>
-            <input
-              type="text"
-              value={letterTitle}
-              onChange={(e) => setLetterTitle(e.target.value)}
-              placeholder="e.g., Missing You Today"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '2px solid #d1d5db',
-                fontSize: '16px',
-                outline: 'none'
-              }}
-              disabled={loading}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-            <label style={{ display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px' }}>
-              Your Message:
-            </label>
-            <textarea
-              value={letterContent}
-              onChange={(e) => setLetterContent(e.target.value)}
-              placeholder="Write your heartfelt message here..."
-              rows="10"
-              style={{
-                width: '100%',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                border: '2px solid #d1d5db',
-                fontSize: '16px',
-                resize: 'none',
-                outline: 'none',
-                fontFamily: 'inherit'
-              }}
-              disabled={loading}
-            />
-          </div>
-          
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <button 
-              onClick={saveLetter} 
-              style={{ 
-                ...primaryButtonStyle, 
-                flex: 1,
-                opacity: loading ? 0.6 : 1,
-                cursor: loading ? 'not-allowed' : 'pointer'
-              }}
-              disabled={loading}
-            >
-              {loading ? 'Saving...' : editingLetter ? 'Update Letter ✏️' : 'Save Letter 💌'}
-            </button>
-            <button 
-              onClick={() => {
-                setAction(null);
-                setEditingLetter(null);
-                setLetterTitle('');
-                setLetterContent('');
-              }} 
-              style={{ ...secondaryButtonStyle, flex: 1 }}
-              disabled={loading}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (action === 'read' && !selectedLetter) {
-    return (
-      <div style={containerStyle}>
-        <CustomModal />
-        <div style={{ ...cardStyle, maxWidth: '700px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
             Love Letters
           </h1>
@@ -1247,4 +1201,4 @@ export default function CouplesDiary() {
   }
 
   return null;
-}
+} 
