@@ -28,37 +28,7 @@ export default function CouplesDiary() {
   // SET YOUR PASSWORD HERE - Change this to your desired password
   const CORRECT_PASSWORD = "OurLove2024";
 
-  // Check if already authenticated in this session
-  useEffect(() => {
-    const authStatus = sessionStorage.getItem('diaryAuth');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    if (password === CORRECT_PASSWORD) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('diaryAuth', 'true');
-      setPassword('');
-      showModal('success', 'Welcome to your love diary! 💕');
-    } else {
-      setModal({
-        type: 'error',
-        message: 'Incorrect password! Only we can access this diary.',
-        persistent: true
-      });
-      setPassword('');
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleLogin();
-    }
-  };
-
-  // Storage helper - works with both window.storage and localStorage
+  // Storage helper - works with both window.storage and in-memory fallback
   const storage = {
     async get(key) {
       try {
@@ -66,9 +36,9 @@ export default function CouplesDiary() {
           return await window.storage.get(key, true);
         }
       } catch (e) {
-        // Fall through to localStorage
+        // Fallback to sessionStorage
       }
-      const value = localStorage.getItem(key);
+      const value = sessionStorage.getItem(key);
       return value ? { key, value } : null;
     },
     
@@ -78,9 +48,9 @@ export default function CouplesDiary() {
           return await window.storage.set(key, value, true);
         }
       } catch (e) {
-        // Fall through to localStorage
+        // Fallback to sessionStorage
       }
-      localStorage.setItem(key, value);
+      sessionStorage.setItem(key, value);
       return { key, value };
     },
     
@@ -90,9 +60,9 @@ export default function CouplesDiary() {
           return await window.storage.delete(key, true);
         }
       } catch (e) {
-        // Fall through to localStorage
+        // Fallback to sessionStorage
       }
-      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
       return { key, deleted: true };
     },
     
@@ -102,11 +72,11 @@ export default function CouplesDiary() {
           return await window.storage.list(prefix, true);
         }
       } catch (e) {
-        // Fall through to localStorage
+        // Fallback to sessionStorage
       }
       const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
         if (key && key.startsWith(prefix)) {
           keys.push(key);
         }
@@ -148,6 +118,27 @@ export default function CouplesDiary() {
       setLetters([]);
     }
     setLoading(false);
+  };
+
+  const handleLogin = () => {
+    if (password === CORRECT_PASSWORD) {
+      setIsAuthenticated(true);
+      setPassword('');
+      showModal('success', 'Welcome to your love diary! 💕');
+    } else {
+      setModal({
+        type: 'error',
+        message: 'Incorrect password! Only we can access this diary.',
+        persistent: true
+      });
+      setPassword('');
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
   };
 
   const showModal = (type, message) => {
@@ -444,6 +435,63 @@ export default function CouplesDiary() {
     background: '#e5e7eb',
     color: '#374151'
   };
+
+  // Password authentication screen
+  if (!isAuthenticated) {
+    return (
+      <div style={containerStyle}>
+        <CustomModal />
+        <div style={cardStyle}>
+          <BookHeart size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
+            Our Love Diary
+          </h1>
+          <p style={{ fontSize: '20px', color: '#6b7280', marginBottom: '32px' }}>
+            Enter password to access
+          </p>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Enter password"
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '18px',
+                borderRadius: '12px',
+                border: '2px solid #d1d5db',
+                outline: 'none',
+                textAlign: 'center'
+              }}
+              autoFocus
+            />
+          </div>
+          
+          <button
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              ...secondaryButtonStyle,
+              width: '100%',
+              marginBottom: '16px',
+              fontSize: '14px'
+            }}
+          >
+            {showPassword ? '🙈 Hide Password' : '👁️ Show Password'}
+          </button>
+          
+          <button
+            onClick={handleLogin}
+            style={{ ...primaryButtonStyle, width: '100%' }}
+          >
+            Enter Diary 💕
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!visitor) {
     return (
