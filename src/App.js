@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Gift, PenLine, Book, Trash2, Edit, BookOpen } from 'lucide-react';
-
+// /mnt/data/App.js
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Heart, Gift, PenLine, Book, Trash2, Edit } from 'lucide-react';
 
 export default function CouplesDiary() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,7 +29,7 @@ export default function CouplesDiary() {
   const timerRef = useRef(null);
   const tapThreshold = 30;
 
-  // 🔥 YOUR FIREBASE CONFIGURATION
+  // 🔥 YOUR FIREBASE CONFIGURATION (if using)
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBNSvH4A32CgzIJ6ZpUoVL5ldrFGOzk-VI",
     authDomain: "love-diary-8da4d.firebaseapp.com",
@@ -48,15 +48,15 @@ export default function CouplesDiary() {
     initializeFirebase();
   }, []);
 
-  // Initialize Firebase
-  const initializeFirebase = async () => {
+  // Initialize Firebase (keeps previous compat approach)
+  const initializeFirebase = useCallback(async () => {
     try {
       // Load Firebase scripts
       await loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js');
       
       // Initialize Firebase
-      if (!window.firebase.apps.length) {
+      if (!window.firebase.apps || window.firebase.apps.length === 0) {
         window.firebase.initializeApp(FIREBASE_CONFIG);
       }
       
@@ -70,7 +70,7 @@ export default function CouplesDiary() {
         persistent: true
       });
     }
-  };
+  }, []);
 
   const loadScript = (src) => {
     return new Promise((resolve, reject) => {
@@ -86,7 +86,7 @@ export default function CouplesDiary() {
     });
   };
 
-  // Firebase Database Helper
+  // Firebase Database Helper (Realtime DB compat)
   const db = {
     async getLetters(profile) {
       if (!firebaseReady) return [];
@@ -133,13 +133,8 @@ export default function CouplesDiary() {
     }
   };
 
-  useEffect(() => {
-    if (viewingProfile && firebaseReady) {
-      loadLetters();
-    }
-  }, [viewingProfile, firebaseReady]);
-
-  const loadLetters = async () => {
+  // load letters when viewingProfile or firebaseReady changes
+  const loadLetters = useCallback(async () => {
     setLoading(true);
     try {
       const loadedLetters = await db.getLetters(viewingProfile);
@@ -149,7 +144,13 @@ export default function CouplesDiary() {
       setLetters([]);
     }
     setLoading(false);
-  };
+  }, [viewingProfile, firebaseReady]);
+
+  useEffect(() => {
+    if (viewingProfile && firebaseReady) {
+      loadLetters();
+    }
+  }, [viewingProfile, firebaseReady, loadLetters]);
 
   const handleLogin = () => {
     if (password === CORRECT_PASSWORD) {
@@ -308,17 +309,6 @@ export default function CouplesDiary() {
     setFillPercentage(Math.min((taps / tapThreshold) * 100, 100));
   }, [taps]);
 
-  const handleRibbonDrag = (e) => {
-    if (ribbonPulled) return;
-    const touch = e.touches ? e.touches[0] : e;
-    const newY = Math.max(0, touch.clientY - 200);
-    setRibbonY(newY);
-    if (newY > 100) {
-      setRibbonPulled(true);
-      setTimeout(() => setGameStarted(true), 500);
-    }
-  };
-
   const handleHeartTap = (e) => {
     if (timeLeft <= 0 || taps >= tapThreshold) return;
     setTaps(prev => prev + 1);
@@ -464,6 +454,28 @@ export default function CouplesDiary() {
     width: '100%'
   };
 
+  const formContainerStyle = {
+    ...cardStyle,
+    maxWidth: '640px',    // consistent width for forms
+    padding: '28px',
+    boxSizing: 'border-box',
+    margin: '0 auto',
+    textAlign: 'left'
+  };
+
+  const textareaStyle = {
+    width: '100%',
+    padding: '16px',
+    fontSize: '16px',
+    borderRadius: '12px',
+    border: '2px solid #d1d5db',
+    minHeight: '40vh',
+    marginBottom: '24px',
+    outline: 'none',
+    resize: 'vertical',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
+  };
+
   const buttonStyle = {
     padding: '15px 30px',
     fontSize: '16px',
@@ -487,74 +499,60 @@ export default function CouplesDiary() {
     color: '#374151'
   };
 
-  if (!mounted) {
-    return (
-      <div style={containerStyle}>
-        <div style={cardStyle}>
-          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937' }}>
-            Loading...
-          </h1>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
+  // Password authentication screen
+  if (!mounted || !isAuthenticated) {
     return (
       <div style={containerStyle}>
         <CustomModal />
-        <div style={cardStyle}>
-          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
-          <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
-            Our Love Diary
-          </h1>
-          <p style={{ fontSize: '20px', color: '#6b7280', marginBottom: '16px' }}>
-            Enter password to access
-          </p>
-          <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '32px', fontStyle: 'italic' }}>
-            🔥 Powered by Firebase - Access from any device!
-          </p>
-          
-          <div style={{ marginBottom: '24px' }}>
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Enter password"
+        <div style={formContainerStyle}>
+          <div style={{ textAlign: 'center' }}>
+            <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px', display: 'block' }} />
+            <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
+              Our Love Diary
+            </h1>
+            <p style={{ fontSize: '20px', color: '#6b7280', marginBottom: '32px' }}>
+              Enter password to access
+            </p>
+            
+            <div style={{ marginBottom: '24px' }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Enter password"
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '18px',
+                  borderRadius: '12px',
+                  border: '2px solid #d1d5db',
+                  outline: 'none',
+                  textAlign: 'center'
+                }}
+                autoFocus
+              />
+            </div>
+            
+            <button
+              onClick={() => setShowPassword(!showPassword)}
               style={{
+                ...secondaryButtonStyle,
                 width: '100%',
-                padding: '16px',
-                fontSize: '18px',
-                borderRadius: '12px',
-                border: '2px solid #d1d5db',
-                outline: 'none',
-                textAlign: 'center'
+                marginBottom: '16px',
+                fontSize: '14px'
               }}
-              autoFocus
-            />
+            >
+              {showPassword ? '🙈 Hide Password' : '👁️ Show Password'}
+            </button>
+            
+            <button
+              onClick={handleLogin}
+              style={{ ...primaryButtonStyle, width: '100%' }}
+            >
+              Enter Diary 💕
+            </button>
           </div>
-          
-          <button
-            onClick={() => setShowPassword(!showPassword)}
-            style={{
-              ...secondaryButtonStyle,
-              width: '100%',
-              marginBottom: '16px',
-              fontSize: '14px'
-            }}
-          >
-            {showPassword ? '🙈 Hide Password' : '👁️ Show Password'}
-          </button>
-          
-          <button
-            onClick={handleLogin}
-            style={{ ...primaryButtonStyle, width: '100%' }}
-            disabled={!firebaseReady}
-          >
-            {firebaseReady ? 'Enter Diary 💕' : 'Connecting...'}
-          </button>
         </div>
       </div>
     );
@@ -564,7 +562,7 @@ export default function CouplesDiary() {
     return (
       <div style={containerStyle}>
         <div style={{ textAlign: 'center' }}>
-          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px' }} />
+          <Book size={96} color="#ec4899" style={{ margin: '0 auto 24px', display: 'block' }} />
           <h1 style={{ fontSize: '48px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
             Our Love Diary
           </h1>
@@ -748,11 +746,86 @@ export default function CouplesDiary() {
     );
   }
 
-  if (action === 'read') {
+  if (action === 'write') {
     return (
       <div style={containerStyle}>
         <CustomModal />
-        <div style={{ ...cardStyle, maxWidth: '600px' }}>
+        <div style={formContainerStyle}>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
+            {editingLetter ? 'Edit Letter' : 'Write a Love Letter'}
+          </h1>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px' }}>
+              Letter Title:
+            </label>
+            <input
+              type="text"
+              value={letterTitle}
+              onChange={(e) => setLetterTitle(e.target.value)}
+              placeholder="e.g., Missing You Today"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '2px solid #d1d5db',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+              disabled={loading}
+            />
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', color: '#374151', fontWeight: '600', marginBottom: '8px' }}>
+              Your Message:
+            </label>
+            <textarea
+              value={letterContent}
+              onChange={(e) => setLetterContent(e.target.value)}
+              placeholder="Write your heartfelt message here..."
+              rows="10"
+              style={textareaStyle}
+              disabled={loading}
+            />
+          </div>
+          
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button 
+              onClick={saveLetter} 
+              style={{ 
+                ...primaryButtonStyle, 
+                flex: 1,
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : editingLetter ? 'Update Letter ✏️' : 'Save Letter 💌'}
+            </button>
+            <button 
+              onClick={() => {
+                setAction(null);
+                setEditingLetter(null);
+                setLetterTitle('');
+                setLetterContent('');
+              }} 
+              style={{ ...secondaryButtonStyle, flex: 1 }}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (action === 'read' && !selectedLetter) {
+    return (
+      <div style={containerStyle}>
+        <CustomModal />
+        <div style={{ ...cardStyle, maxWidth: '700px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
             Love Letters
           </h1>
@@ -761,7 +834,7 @@ export default function CouplesDiary() {
             <p style={{ color: '#6b7280', padding: '40px' }}>Loading letters...</p>
           ) : letters.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <BookOpen size={64} color="#ec4899" style={{ margin: '0 auto 16px' }} />
+              <Book size={64} color="#ec4899" style={{ margin: '0 auto 16px' }} />
               <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '18px' }}>
                 No letters yet. {visitor === viewingProfile ? 'Write the first one!' : 'Check back later!'}
               </p>
@@ -891,74 +964,40 @@ export default function CouplesDiary() {
       </div>
     );
   }
-if (action === 'write') {
-  return (
-    <div style={containerStyle}>
-      <CustomModal />
-      <div style={{ ...cardStyle, maxWidth: '600px' }}>
-        <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '24px' }}>
-          {editingLetter ? 'Edit Letter' : 'Write a Letter'}
-        </h1>
-        
-        <input
-          type="text"
-          placeholder="Letter Title"
-          value={letterTitle}
-          onChange={(e) => setLetterTitle(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '16px',
-            fontSize: '18px',
-            borderRadius: '12px',
-            border: '2px solid #d1d5db',
-            marginBottom: '16px',
-            outline: 'none'
-          }}
-        />
-        
-        <textarea
-          placeholder="Write your message here..."
-          value={letterContent}
-          onChange={(e) => setLetterContent(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '16px',
-            fontSize: '16px',
-            borderRadius: '12px',
-            border: '2px solid #d1d5db',
-            minHeight: '300px',
-            marginBottom: '24px',
-            outline: 'none',
-            resize: 'vertical',
-            fontFamily: 'system-ui, -apple-system, sans-serif'
-          }}
-        />
-        
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <button
-            onClick={() => {
-              setAction(null);
-              setEditingLetter(null);
-              setLetterTitle('');
-              setLetterContent('');
-            }}
-            style={{ ...secondaryButtonStyle, flex: 1 }}
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={saveLetter}
-            style={{ ...primaryButtonStyle, flex: 1 }}
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : (editingLetter ? 'Update Letter' : 'Save Letter')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+
+  // Pointer-based ribbon dragging (more reliable)
+  const ribbonStateRef = useRef({ dragging: false, startY: 0, lastY: 0 });
+  const PULL_THRESHOLD = 120; // px to consider "pulled"
+
+  const handleRibbonPointerDown = (e) => {
+    e.preventDefault?.();
+    const clientY = (e.touches && e.touches[0] && e.touches[0].clientY) || e.clientY;
+    ribbonStateRef.current = { dragging: true, startY: clientY, lastY: clientY };
+  };
+
+  const handleRibbonPointerMove = (e) => {
+    if (!ribbonStateRef.current.dragging) return;
+    e.preventDefault?.();
+    const clientY = (e.touches && e.touches[0] && e.touches[0].clientY) || e.clientY;
+    const dy = Math.max(0, clientY - ribbonStateRef.current.startY);
+    ribbonStateRef.current.lastY = clientY;
+    setRibbonY(dy);
+    if (dy > PULL_THRESHOLD && !ribbonPulled) {
+      setRibbonPulled(true);
+      setTimeout(() => setGameStarted(true), 450);
+    }
+  };
+
+  const handleRibbonPointerUp = (e) => {
+    if (!ribbonStateRef.current.dragging) return;
+    ribbonStateRef.current.dragging = false;
+    if (!ribbonPulled) {
+      setRibbonY(0);
+    } else {
+      setRibbonY(PULL_THRESHOLD + 40);
+    }
+  };
+
   if (selectedLetter && !ribbonPulled) {
     return (
       <div style={containerStyle}>
@@ -984,26 +1023,19 @@ if (action === 'write') {
                 left: '50%',
                 transform: 'translateX(-50%)',
                 top: `${20 + ribbonY}px`,
-                cursor: 'grab'
+                cursor: 'grab',
+                touchAction: 'none'
               }}
-              onMouseDown={(e) => {
-                const handleMove = (e) => handleRibbonDrag(e);
-                const handleUp = () => {
-                  document.removeEventListener('mousemove', handleMove);
-                  document.removeEventListener('mouseup', handleUp);
-                };
-                document.addEventListener('mousemove', handleMove);
-                document.addEventListener('mouseup', handleUp);
-              }}
-              onTouchStart={(e) => {
-                const handleMove = (e) => handleRibbonDrag(e);
-                const handleEnd = () => {
-                  document.removeEventListener('touchmove', handleMove);
-                  document.removeEventListener('touchend', handleEnd);
-                };
-                document.addEventListener('touchmove', handleMove);
-                document.addEventListener('touchend', handleEnd);
-              }}
+              onPointerDown={handleRibbonPointerDown}
+              onPointerMove={handleRibbonPointerMove}
+              onPointerUp={handleRibbonPointerUp}
+              onPointerCancel={handleRibbonPointerUp}
+              onMouseDown={handleRibbonPointerDown}
+              onMouseMove={handleRibbonPointerMove}
+              onMouseUp={handleRibbonPointerUp}
+              onTouchStart={handleRibbonPointerDown}
+              onTouchMove={handleRibbonPointerMove}
+              onTouchEnd={handleRibbonPointerUp}
             >
               <div style={{
                 width: '8px',
@@ -1022,6 +1054,26 @@ if (action === 'write') {
                 marginTop: '-8px',
                 marginLeft: '-12px'
               }} />
+              
+              {/* small progress bar */}
+              <div style={{
+                position: 'absolute',
+                top: '-8px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '120px',
+                height: '6px',
+                background: '#fde7f3',
+                borderRadius: '6px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${Math.min(100, (ribbonY / PULL_THRESHOLD) * 100)}%`,
+                  height: '100%',
+                  background: '#ec4899',
+                  transition: 'width 0.08s linear'
+                }} />
+              </div>
             </div>
           </div>
           
@@ -1079,7 +1131,7 @@ if (action === 'write') {
             onClick={handleHeartTap}
             onTouchStart={handleHeartTap}
           >
-            <svg width="200" height="200" viewBox="0 0 200 200">
+            <svg width="200" height="200" viewBox="0 0 200 200" aria-hidden>
               <defs>
                 <clipPath id="heartClip">
                   <path d="M100,170 C100,170 30,120 30,80 C30,50 50,30 75,30 C85,30 95,35 100,45 C105,35 115,30 125,30 C150,30 170,50 170,80 C170,120 100,170 100,170 Z" />
@@ -1088,185 +1140,148 @@ if (action === 'write') {
               
               <path
                 d="M100,170 C100,170 30,120 30,80 C30,50 50,30 75,30 C85,30 95,35 100,45 C105,35 115,30 125,30 C150,30 170,50 170,80 C170,120 100,170 100,170 Z"
-                fill="#fce7f3"
-                stroke="#ec4899"
-                strokeWidth="3"
-              />
-              
-              <rect
-                x="0"
-                y={200 - (fillPercentage * 2)}
-                width="200"
-                height={fillPercentage * 2}
-                fill="#ec4899"
+                fill="#f472b6"
                 clipPath="url(#heartClip)"
-                style={{ transition: 'all 0.1s' }}
               />
             </svg>
-            
-            {tapAnimations.map(anim => (
+
+            {tapAnimations.map((anim) => (
               <div
                 key={anim.id}
                 style={{
                   position: 'absolute',
-                  left: `${anim.x}px`,
-                  top: `${anim.y}px`,
-                  color: '#ec4899',
-                  fontWeight: 'bold',
-                  fontSize: '24px',
+                  left: anim.x,
+                  top: anim.y,
                   pointerEvents: 'none',
-                  animation: 'tapPulse 0.6s ease-out'
+                  color: '#f472b6',
+                  fontSize: '24px',
+                  animation: 'floatUp 0.6s ease-out forwards'
                 }}
               >
-                +1
+                ❤️
               </div>
             ))}
+
+            <style>{`
+              @keyframes floatUp {
+                0% { opacity: 1; transform: translate(-50%, 0); }
+                100% { opacity: 0; transform: translate(-50%, -40px); }
+              }
+            `}</style>
           </div>
-          
+
           <div style={{
             width: '100%',
-            height: '12px',
-            background: '#e5e7eb',
-            borderRadius: '50px',
+            height: '20px',
+            background: '#fde7f3',
+            borderRadius: '10px',
             overflow: 'hidden',
-            marginBottom: '16px'
+            marginBottom: '24px'
           }}>
-            <div style={{
-              width: `${fillPercentage}%`,
-              height: '100%',
-              background: 'linear-gradient(to right, #f9a8d4, #ec4899)',
-              borderRadius: '50px',
-              transition: 'width 0.2s'
-            }} />
+            <div
+              style={{
+                width: `${fillPercentage}%`,
+                height: '100%',
+                background: '#ec4899',
+                transition: 'width 0.2s'
+              }}
+            />
           </div>
-          
-          <button 
+
+          <button
             onClick={() => {
               setGameStarted(false);
-              setGameComplete(false);
-              setTaps(0);
-              setTimeLeft(5);
-              setFillPercentage(0);
-              setRibbonPulled(false);
-              setSelectedLetter(null);
-              clearInterval(timerRef.current);
+              setGameComplete(true);
             }}
             style={{ ...secondaryButtonStyle, width: '100%' }}
           >
-            Cancel
+            Skip Game
           </button>
         </div>
-        
-        <style>{`
-          @keyframes tapPulse {
-            0% {
-              transform: scale(1) translateY(0);
-              opacity: 1;
-            }
-            100% {
-              transform: scale(1.5) translateY(-30px);
-              opacity: 0;
-            }
-          }
-        `}</style>
       </div>
     );
   }
 
+  // LETTER REVEAL SCREEN
   if (gameComplete && selectedLetter) {
-    const success = taps >= tapThreshold;
-    
     return (
       <div style={containerStyle}>
-        <div style={{ ...cardStyle, maxWidth: '700px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            {success ? (
-              <>
-                <Heart size={80} color="#ec4899" fill="#ec4899" style={{ margin: '0 auto 16px' }} />
-                <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                  Amazing! 💝
-                </h2>
-                <p style={{ fontSize: '20px', color: '#6b7280' }}>
-                  You tapped {taps} times! Here's your letter:
-                </p>
-              </>
-            ) : (
-              <>
-                <Heart size={80} color="#9ca3af" style={{ margin: '0 auto 16px' }} />
-                <h2 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                  Nice Try! 💕
-                </h2>
-                <p style={{ fontSize: '20px', color: '#6b7280' }}>
-                  You tapped {taps} times! Here's your letter anyway:
-                </p>
-              </>
-            )}
-          </div>
-          
-          <div style={{
-            background: '#fdf2f8',
-            borderRadius: '12px',
-            padding: '24px',
-            border: '2px solid #fbcfe8',
-            marginBottom: '24px',
-            textAlign: 'left'
+        <div style={{ ...cardStyle, maxWidth: '700px', position: 'relative' }}>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: 'bold',
+            color: '#1f2937',
+            marginBottom: '24px'
           }}>
-            <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
+            💌 Your Letter
+          </h1>
+
+          <div
+            style={{
+              background: '#fdf2f8',
+              padding: '24px',
+              borderRadius: '16px',
+              border: '2px solid #fbcfe8',
+              textAlign: 'left',
+              maxHeight: '400px',
+              overflowY: 'auto'
+            }}
+          >
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              marginBottom: '12px',
+              color: '#1f2937'
+            }}>
               {selectedLetter.title}
-            </h3>
-            <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '12px' }}>
-              From: {selectedLetter.from === 'boyfriend' ? '👨 Boyfriend' : '👩 Girlfriend'}
-            </p>
-            <p style={{ color: '#9ca3af', fontSize: '12px', marginBottom: '20px' }}>
-              {new Date(selectedLetter.date).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-              {selectedLetter.edited && ' (edited)'}
-            </p>
-            <p style={{ color: '#374151', fontSize: '18px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+            </h2>
+
+            <p style={{
+              fontSize: '16px',
+              color: '#374151',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap'
+            }}>
               {selectedLetter.content}
             </p>
+
+            <p style={{
+              marginTop: '16px',
+              fontSize: '12px',
+              color: '#9ca3af'
+            }}>
+              {new Date(selectedLetter.date).toLocaleString()}
+            </p>
+
+            {selectedLetter.edited && (
+              <p style={{
+                fontSize: '12px',
+                color: '#9ca3af',
+                fontStyle: 'italic'
+              }}>
+                (edited)
+              </p>
+            )}
           </div>
-          
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <button 
-              onClick={() => {
-                setSelectedLetter(null);
-                setRibbonPulled(false);
-                setGameStarted(false);
-                setGameComplete(false);
-                setTaps(0);
-                setTimeLeft(5);
-                setRibbonY(0);
-                setFillPercentage(0);
-              }}
-              style={{ ...secondaryButtonStyle, flex: 1 }}
-            >
-              Back to Letters
-            </button>
-            <button 
-              onClick={() => {
-                setRibbonPulled(false);
-                setGameStarted(false);
-                setGameComplete(false);
-                setTaps(0);
-                setTimeLeft(5);
-                setRibbonY(0);
-                setFillPercentage(0);
-              }}
-              style={{ ...primaryButtonStyle, flex: 1, background: '#a855f7' }}
-            >
-              Read Again
-            </button>
-          </div>
+
+          <button
+            onClick={() => {
+              setRibbonPulled(false);
+              setGameStarted(false);
+              setGameComplete(false);
+              setSelectedLetter(null);
+              setTaps(0);
+              setTimeLeft(5);
+              setFillPercentage(0);
+            }}
+            style={{ ...secondaryButtonStyle, width: '100%', marginTop: '24px' }}
+          >
+            ← Back to Letters
+          </button>
         </div>
       </div>
     );
   }
 
   return null;
-} 
+}
